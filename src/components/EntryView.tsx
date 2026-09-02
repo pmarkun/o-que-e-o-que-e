@@ -5,9 +5,16 @@ type EntryViewProps = {
   entry: Entry
   onEdit: () => void
   onHistory: () => void
+  onSourceOpened: (sourceType: 'wikipedia' | 'wiktionary') => void
 }
 
-export function EntryView({ entry, onEdit, onHistory }: EntryViewProps) {
+function getSourceType(url: string) {
+  if (url.includes('wikipedia.org')) return 'wikipedia' as const
+  if (url.includes('wiktionary.org')) return 'wiktionary' as const
+  return null
+}
+
+export function EntryView({ entry, onEdit, onHistory, onSourceOpened }: EntryViewProps) {
   const titleLength = entry.title.length
   const titleClass = titleLength > 20 ? 'title-xlong' : titleLength > 13 ? 'title-long' : titleLength > 8 ? 'title-medium' : 'title-short'
   const definitionLength = entry.definition.length
@@ -26,7 +33,10 @@ export function EntryView({ entry, onEdit, onHistory }: EntryViewProps) {
         <ul>
           {entry.references.map((reference) => (
             <li key={reference.url}>
-              <a href={reference.url} target="_blank" rel="noreferrer">
+              <a href={reference.url} target="_blank" rel="noreferrer" onClick={() => {
+                const sourceType = getSourceType(reference.url)
+                if (sourceType) onSourceOpened(sourceType)
+              }}>
                 <span className="source-mark" aria-hidden="true">{reference.title.slice(0, 1).toLocaleUpperCase('pt-BR')}</span>
                 <span>{reference.title}</span>
                 <ExternalIcon />

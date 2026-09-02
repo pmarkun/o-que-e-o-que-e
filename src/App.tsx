@@ -6,6 +6,9 @@ import { SearchForm } from './components/SearchForm'
 import { SuggestionSheet } from './components/SuggestionSheet'
 import type { Entry } from './types'
 import { AdminApp } from './admin/AdminApp'
+import { loadAnalytics, trackEvent, trackPageView } from './analytics'
+
+const redirectedSearchKey = 'oqe:search-redirected'
 
 function currentTopic() {
   try {
@@ -38,6 +41,7 @@ function PublicApp() {
   const closeSheet = useCallback(() => setSheet(null), [])
 
   useEffect(() => {
+    loadAnalytics()
     document.body.classList.add('public-app')
     return () => document.body.classList.remove('public-app')
   }, [])
@@ -59,6 +63,7 @@ function PublicApp() {
       setError('')
       setIsLoading(false)
       document.title = 'O que é o que é?'
+      trackPageView()
       return
     }
 
@@ -77,11 +82,17 @@ function PublicApp() {
       .then((nextEntry) => {
         const canonicalSlug = slugify(nextEntry.title)
         if (canonicalSlug && canonicalSlug !== slug) {
+          sessionStorage.setItem(redirectedSearchKey, '1')
           window.location.replace(`/${canonicalSlug}`)
           return
         }
         setEntry(nextEntry)
         document.title = `${nextEntry.title} — O que é o que é?`
+        trackPageView()
+        const wasRedirected = sessionStorage.getItem(redirectedSearchKey) === '1'
+        sessionStorage.removeItem(redirectedSearchKey)
+        if (wasRedirected) trackEvent('search_redirected')
+        trackEvent('entry_loaded', { result: wasRedirected ? 'redirected' : 'exact' })
       })
       .catch((caught) => {
         if (caught instanceof Error && caught.name !== 'AbortError') setError(caught.message)
@@ -107,6 +118,26 @@ function PublicApp() {
     })
   }, [])
 
+  const submitSearch = useCallback((value: string) => {
+    if (value.trim()) trackEvent('search_submitted', { source: topic ? 'entry' : 'home' })
+    navigateToTopic(value)
+  }, [navigateToTopic, topic])
+
+  const startSuggestion = useCallback(() => {
+    trackEvent('suggestion_started')
+    setSheet('suggestion')
+  }, [])
+
+  const openHistory = useCallback(() => {
+    trackEvent('history_opened')
+    setSheet('history')
+  }, [])
+
+  const finishSuggestion = useCallback(() => {
+    trackEvent('suggestion_submitted', { status: 'accepted' })
+    setSheet('sent')
+  }, [])
+
   function goHome() {
     window.history.pushState({}, '', '/')
     startTransition(() => {
@@ -121,7 +152,7 @@ function PublicApp() {
         <button className="brand" type="button" onClick={goHome} aria-label="Ir para o início">
           <span>O QUE É<br />O QUE É?</span>
         </button>
-        {topic ? <SearchForm compact onSearch={navigateToTopic} /> : null}
+        {topic ? <SearchForm compact onSearch={submitSearch} /> : null}
       </header>
 
       <main>
@@ -130,7 +161,7 @@ function PublicApp() {
             <span className="home-question" aria-hidden="true">?</span>
             <h1><span>QUALQUER</span><span>ASSUNTO.</span><span>SEM</span><span>COMPLICAÇÃO.</span></h1>
             <p className="home-description">Uma explicação curta, em linguagem simples, com fontes para continuar aprendendo.</p>
-            <SearchForm onSearch={navigateToTopic} />
+            <SearchForm onSearch={submitSearch} />
             <nav className="home-examples" aria-label="Exemplos de temas">
               <strong>EXEMPLOS</strong>
               <button onClick={() => navigateToTopic('política')}>POLÍTICA <span>↗</span></button>
@@ -149,18 +180,23 @@ function PublicApp() {
           </section>
         ) : null}
         {entry ? (
-          <EntryView entry={entry} onEdit={() => setSheet('suggestion')} onHistory={() => setSheet('history')} />
+          <EntryView
+            entry={entry}
+            onEdit={startSuggestion}
+            onHistory={openHistory}
+            onSourceOpened={(sourceType) => trackEvent('source_opened', { source_type: sourceType })}
+          />
         ) : null}
       </main>
 
       {sheet === 'search' ? (
         <div className="search-overlay" role="dialog" aria-modal="true" aria-label="Buscar outro tema">
           <button className="overlay-close" type="button" onClick={closeSheet}>Fechar</button>
-          <SearchForm onSearch={navigateToTopic} />
+          <SearchForm onSearch={submitSearch} />
         </div>
       ) : null}
       {sheet === 'suggestion' && entry ? (
-        <SuggestionSheet entry={entry} onClose={closeSheet} onSent={() => setSheet('sent')} />
+        <SuggestionSheet entry={entry} onClose={closeSheet} onSent={finishSuggestion} />
       ) : null}
       {sheet === 'history' && entry ? <HistorySheet entry={entry} onClose={closeSheet} /> : null}
       {sheet === 'sent' ? (

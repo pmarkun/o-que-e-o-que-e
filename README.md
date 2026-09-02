@@ -75,6 +75,29 @@ npm run typecheck
 npm run build
 ```
 
+## Analytics
+
+O frontend público pode enviar pageviews e eventos para a instância Umami da Arapy. O painel administrativo em `/admin` não carrega o tracker.
+
+Configure as duas variáveis públicas no build:
+
+```bash
+VITE_UMAMI_SCRIPT_URL=https://analytics.arapy.ia.br/script.js
+VITE_UMAMI_WEBSITE_ID=<id-do-website-no-umami>
+```
+
+Se uma delas estiver ausente, analytics fica desativado silenciosamente. A indisponibilidade ou o bloqueio do tracker não interrompe busca, navegação, fontes, histórico nem sugestões.
+
+Eventos do MVP:
+
+- `search_submitted`: origem controlada `home` ou `entry`, sem o termo pesquisado.
+- `entry_loaded`: resultado `exact` ou `redirected`, sem título ou slug.
+- `search_redirected`: redirecionamento ortográfico, sem o termo pesquisado.
+- `source_opened`: fonte `wikipedia` ou `wiktionary`.
+- `suggestion_started`, `suggestion_submitted` e `history_opened`: sem conteúdo livre; a submissão envia apenas `status: accepted`.
+
+O auto-pageview do Umami fica desativado e a aplicação envia um pageview manual somente depois de renderizar cada rota. Essa estratégia cobre navegação direta, `pushState`, voltar/avançar e redirecionamentos sem duplicidade. Valide no painel antes de publicar uma nova configuração.
+
 ## Decisões do MVP
 
 - SQLite reduz infraestrutura e já oferece cache e histórico duráveis.
